@@ -29,7 +29,6 @@ services:
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--entrypoints.websecure.address=:443"
-      - "--entrypoints.websecurealt.address=:6636" # For OSH backend
       - "--certificatesresolvers.letsencrypt.acme.email=cert@${DOMAIN}"
       - "--certificatesresolvers.letsencrypt.acme.storage=acme/acme.json"
       - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
@@ -38,7 +37,6 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "6636:6636"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro,z"
       - "traefik-logs-vol:/var/log/traefik:z"
@@ -113,19 +111,19 @@ services:
     depends_on:
       - osh-backend
     environment:
-      - VITE_REST_API_HOST=https://${OSH_DOMAIN}:6636
+      - VITE_REST_API_HOST=https://${OSH_API_DOMAIN}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.oshfront.rule=Host(`${OSH_DOMAIN}`)"
+      - "traefik.http.routers.oshfront.entrypoints=websecure"
+      - "traefik.http.routers.oshfront.tls=true"
+      - "traefik.http.routers.oshfront.tls.certresolver=letsencrypt"
       - "traefik.http.routers.oshfront.middlewares=crowdsec@docker" # ,basic-auth-osh
+      - "traefik.http.services.oshfront.loadbalancer.server.port=80"
       - "traefik.http.middlewares.crowdsec.plugin.bouncer.enabled=true"
       - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecmode=stream"
       - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdseclapikey=${BOUNCER_KEY_TRAEFIK}"
       - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecappsecenabled=true"
-      - "traefik.http.routers.oshfront.entrypoints=websecure"
-      - "traefik.http.routers.oshfront.tls=true"
-      - "traefik.http.routers.oshfront.tls.certresolver=letsencrypt"
-      - "traefik.http.services.oshfront.loadbalancer.server.port=80"
       # - "traefik.http.middlewares.basic-auth-osh.basicauth.users=${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}"
     networks:
       - internal
@@ -140,22 +138,22 @@ services:
       - MONGODB_URI=mongodb://osh-mongodb:27017/open-stream-hubV2
       - REST_API_PORT=6636
       - RTMP_SERVER_PORT=1935
-      - RTMP_INJECT_HOST=rtmp://${OSH_DOMAIN}
+      - RTMP_INJECT_HOST=rtmp://${OSH_RTMP_DOMAIN}
       - RTMP_INJECT_ROOT=/inject
       - RTMP_WATCH_ROOT=/watch
       - HSL_PREVIEW_ENABLED=true
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.oshback.rule=Host(`${OSH_DOMAIN}`)"
+      - "traefik.http.routers.oshback.rule=Host(`${OSH_API_DOMAIN}`)"
+      - "traefik.http.routers.oshback.entrypoints=websecure"
+      - "traefik.http.routers.oshback.tls=true"
+      - "traefik.http.routers.oshback.tls.certresolver=letsencrypt"
       - "traefik.http.routers.oshback.middlewares=crowdsec@docker"
+      - "traefik.http.services.oshback.loadbalancer.server.port=6636"
       - "traefik.http.middlewares.crowdsec.plugin.bouncer.enabled=true"
       - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecmode=stream"
       - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdseclapikey=${BOUNCER_KEY_TRAEFIK}"
       - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecappsecenabled=true"
-      - "traefik.http.routers.oshback.entrypoints=websecurealt"
-      - "traefik.http.routers.oshback.tls=true"
-      - "traefik.http.routers.oshback.tls.certresolver=letsencrypt"
-      - "traefik.http.services.oshback.loadbalancer.server.port=6636"
     networks:
       - internal
     restart: unless-stopped
