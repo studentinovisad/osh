@@ -1,163 +1,34 @@
 services:
-  # Reverse proxy
-  crowdsec:
-    image: docker.io/crowdsecurity/crowdsec:v1.6.4
-    environment:
-      COLLECTIONS: crowdsecurity/traefik crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules
-      CUSTOM_HOSTNAME: crowdsec
-      BOUNCER_KEY_TRAEFIK: ${BOUNCER_KEY_TRAEFIK}
-    volumes:
-      - "./acquis.yaml:/etc/crowdsec/acquis.yaml:ro,z"
-      - "traefik-logs-vol:/var/log/traefik:ro,z"
-      - "crowdsec-db-vol:/var/lib/crowdsec/data:Z"
-      - "crowdsec-conf-vol:/etc/crowdsec:Z"
-    labels:
-      - "traefik.enable=false"
-    networks:
-      - internal
-    restart: unless-stopped
-  traefik:
-    depends_on:
-      - crowdsec
-    image: docker.io/library/traefik:v3.2.2
-    command:
-      - "--accesslog"
-      - "--accesslog.filepath=/var/log/traefik/access.log"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.letsencrypt.acme.email=cert@${DOMAIN}"
-      - "--certificatesresolvers.letsencrypt.acme.storage=acme/acme.json"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-      - "--experimental.plugins.bouncer.modulename=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
-      - "--experimental.plugins.bouncer.version=v1.3.5"
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro,z"
-      - "traefik-logs-vol:/var/log/traefik:z"
-      - "traefik-acme-vol:/acme:Z"
-    networks:
-      - internal
-    restart: unless-stopped
-  # Wireguard
-  wireguard:
-    image: docker.io/linuxserver/wireguard:1.0.20210914
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Berlin
-      - SERVERURL=${DOMAIN}
-      - PEERS=10
-      - PEERDNS=9.9.9.9,1.1.1.1
-      - INTERNAL_SUBNET=10.69.69.0
-      - ALLOWEDIPS=0.0.0.0/0
-    volumes:
-      - "/lib/modules:/lib/modules"
-      - "./wg-conf:/config:z"
-    ports:
-      - "51820:51820/udp"
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1
-    # networks:
-    #   - internal
-    restart: unless-stopped
-  # wireguard-ui:
-  #   image: docker.io/ngoduykhanh/wireguard-ui:0.6.2
-  #   depends_on:
-  #     - wireguard
-  #   cap_add:
-  #     - NET_ADMIN
-  #   # Use the network of the 'wireguard' service
-  #   # This enables to show active clients in the status page
-  #   network_mode: service:wireguard
-  #   environment:
-  #     - SESSION_SECRET=${SESSION_SECRET}
-  #     - WGUI_USERNAME=admin
-  #     - WGUI_PASSWORD=${WGUI_PASSWORD}
-  #     - WGUI_ENDPOINT_ADDRESS=${DOMAIN}
-  #     - WGUI_DNS=9.9.9.9,1.1.1.1
-  #     - WGUI_MTU=1420
-  #     - WGUI_DEFAULT_CLIENT_ALLOWED_IPS=0.0.0.0/0
-  #     - WGUI_SERVER_INTERFACE_ADDRESSES=10.69.69.0/24
-  #     - WGUI_MANAGE_START=true
-  #     - WGUI_MANAGE_RESTART=true
-  #   volumes:
-  #     - "wireguard-ui-db-vol:/app/db:Z"
-  #     - "./wg-conf:/etc/wireguard:z"
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.wgui.rule=Host(`${DOMAIN}`)"
-  #     - "traefik.http.routers.wgui.middlewares=crowdsec@docker"
-  #     - "traefik.http.middlewares.crowdsec.plugin.bouncer.enabled=true"
-  #     - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecmode=stream"
-  #     - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdseclapikey=${BOUNCER_KEY_TRAEFIK}"
-  #     - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecappsecenabled=true"
-  #     - "traefik.http.routers.wgui.entrypoints=websecure"
-  #     - "traefik.http.routers.wgui.tls=true"
-  #     - "traefik.http.routers.wgui.tls.certresolver=letsencrypt"
-  #     - "traefik.http.services.wgui.loadbalancer.server.port=5000"
-  #   restart: unless-stopped
-  # Open stream hub
-  osh-frontend:
+  frontend:
     image: docker.io/sythinian/open-stream-hub-frontend:latest # TODO: not latest
     depends_on:
-      - osh-backend
+      - backend
+    ports:
+      - "80:80" # Frontend server port
     environment:
-      - VITE_REST_API_HOST=https://${OSH_API_DOMAIN}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.oshfront.rule=Host(`${OSH_DOMAIN}`)"
-      - "traefik.http.routers.oshfront.entrypoints=websecure"
-      - "traefik.http.routers.oshfront.tls=true"
-      - "traefik.http.routers.oshfront.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.oshfront.middlewares=crowdsec@docker" # ,basic-auth-osh
-      - "traefik.http.services.oshfront.loadbalancer.server.port=80"
-      - "traefik.http.middlewares.crowdsec.plugin.bouncer.enabled=true"
-      - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecmode=stream"
-      - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdseclapikey=${BOUNCER_KEY_TRAEFIK}"
-      - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecappsecenabled=true"
-      # - "traefik.http.middlewares.basic-auth-osh.basicauth.users=${BASIC_AUTH_USERNAME}:${BASIC_AUTH_PASSWORD}"
+      - VITE_REST_API_HOST=http://${PRIVATE_IP}:6636
     networks:
       - internal
     restart: unless-stopped
-  osh-backend:
+  backend:
     image: docker.io/sythinian/open-stream-hub-backend:latest # TODO: not latest
     depends_on:
-      - osh-mongodb
+      - mongodb
     ports:
+      - "6636:6636" # REST API server port
       - "1935:1935" # RTMP server port
     environment:
-      - MONGODB_URI=mongodb://osh-mongodb:27017/open-stream-hubV2
+      - MONGODB_URI=mongodb://mongodb:27017/open-stream-hubV2
       - REST_API_PORT=6636
       - RTMP_SERVER_PORT=1935
       - RTMP_INJECT_HOST=rtmp://${OSH_RTMP_DOMAIN}
       - RTMP_INJECT_ROOT=/inject
       - RTMP_WATCH_ROOT=/watch
       - HSL_PREVIEW_ENABLED=true
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.oshback.rule=Host(`${OSH_API_DOMAIN}`)"
-      - "traefik.http.routers.oshback.entrypoints=websecure"
-      - "traefik.http.routers.oshback.tls=true"
-      - "traefik.http.routers.oshback.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.oshback.middlewares=crowdsec@docker"
-      - "traefik.http.services.oshback.loadbalancer.server.port=6636"
-      - "traefik.http.middlewares.crowdsec.plugin.bouncer.enabled=true"
-      - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecmode=stream"
-      - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdseclapikey=${BOUNCER_KEY_TRAEFIK}"
-      - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecappsecenabled=true"
     networks:
       - internal
     restart: unless-stopped
-  osh-mongodb:
+  mongodb:
     image: docker.io/library/mongo:latest # TODO: not latest
     volumes:
       - "mongodb-data-vol:/data/db:Z"
@@ -167,9 +38,4 @@ services:
 networks:
   internal:
 volumes:
-  crowdsec-db-vol:
-  crowdsec-conf-vol:
-  traefik-logs-vol:
-  traefik-acme-vol:
-  # wireguard-ui-db-vol:
   mongodb-data-vol:
