@@ -24,7 +24,7 @@ services:
       - RTMP_INJECT_HOST=rtmp://${OSH_RTMP_DOMAIN}
       - RTMP_INJECT_ROOT=/inject
       - RTMP_WATCH_ROOT=/watch
-      - HSL_PREVIEW_ENABLED=true
+      - HSL_PREVIEW_ENABLED=false # true consumes a lot of cpu
     networks:
       - internal
     restart: unless-stopped
