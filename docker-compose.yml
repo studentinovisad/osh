@@ -102,8 +102,8 @@ services:
 networks:
   internal:
 volumes:
-  crowdsec-db-vol:
-  crowdsec-conf-vol:
+  # crowdsec-db-vol:
+  # crowdsec-conf-vol:
   traefik-logs-vol:
   traefik-acme-vol:
   mongodb-data-vol:
