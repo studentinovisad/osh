@@ -46,9 +46,6 @@ services:
       - "traefik-acme-vol:/acme:Z"
     networks:
       - internal
-    labels:
-      - "traefik.enable=false"
-      - "traefik.http.middlewares.auth.basicauth.users=${BASIC_AUTH}"
     restart: unless-stopped
   frontend:
     image: docker.io/sythinian/open-stream-hub-frontend:latest # TODO: not latest
@@ -66,6 +63,7 @@ services:
       - "traefik.http.routers.frontend.tls=true"
       - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.auth.basicauth.users=${BASIC_AUTH}"
     restart: unless-stopped
   backend:
     image: docker.io/sythinian/open-stream-hub-backend:latest # TODO: not latest
@@ -91,6 +89,7 @@ services:
       - "traefik.http.routers.backend.tls=true"
       - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
       - "traefik.http.services.backend.loadbalancer.server.port=6636"
+      - "traefik.http.middlewares.auth.basicauth.users=${BASIC_AUTH}"
     restart: unless-stopped
   mongodb:
     image: docker.io/library/mongo:4 # Has to be 4 when AVX isn't supported
