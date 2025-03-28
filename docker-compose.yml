@@ -46,6 +46,9 @@ services:
       - "traefik-acme-vol:/acme:Z"
     networks:
       - internal
+    labels:
+      - "traefik.enable=false"
+      - "traefik.http.middlewares.auth.basicauth.users=${BASIC_AUTH}"
     restart: unless-stopped
   frontend:
     image: docker.io/sythinian/open-stream-hub-frontend:latest # TODO: not latest
@@ -58,13 +61,11 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`${DOMAIN}`)"
-      # - "traefik.http.routers.frontend.middlewares=crowdsec@docker,auth@docker"
-      - "traefik.http.routers.frontend.middlewares=auth@docker"
+      - "traefik.http.routers.frontend.middlewares=crowdsec@docker,auth@docker"
       - "traefik.http.routers.frontend.entrypoints=websecure"
       - "traefik.http.routers.frontend.tls=true"
       - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
-      - "traefik.http.middlewares.auth.basicauth.users=${BASIC_AUTH}"
     restart: unless-stopped
   backend:
     image: docker.io/sythinian/open-stream-hub-backend:latest # TODO: not latest
@@ -85,13 +86,11 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
-      # - "traefik.http.routers.backend.middlewares=crowdsec@docker,auth@docker"
-      - "traefik.http.routers.backend.middlewares=auth@docker"
+      - "traefik.http.routers.backend.middlewares=crowdsec@docker,auth@docker"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls=true"
       - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
       - "traefik.http.services.backend.loadbalancer.server.port=6636"
-      - "traefik.http.middlewares.auth.basicauth.users=${BASIC_AUTH}"
     restart: unless-stopped
   mongodb:
     image: docker.io/library/mongo:4 # Has to be 4 when AVX isn't supported
