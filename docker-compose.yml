@@ -68,7 +68,7 @@ services:
     depends_on:
       - mongodb
     ports:
-      - "1935:1935" # RTMP server port
+      - "1935:1935"
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/open-stream-hubV2
       - REST_API_PORT=6636
@@ -76,7 +76,7 @@ services:
       - RTMP_INJECT_HOST=rtmp://${RTMP_DOMAIN}
       - RTMP_INJECT_ROOT=/inject
       - RTMP_WATCH_ROOT=/watch
-      - HSL_PREVIEW_ENABLED=false # true consumes a lot of cpu
+      - HSL_PREVIEW_ENABLED=false # Consumes a lot of cpu
     networks:
       - internal
     labels:
@@ -100,6 +100,64 @@ services:
     networks:
       - internal
     restart: unless-stopped
+  wireguard:
+    image: docker.io/linuxserver/wireguard:1.0.20210914
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "51820:51820/udp"
+    volumes:
+      - "wg-conf-vol:/config:z"
+    networks:
+      - internal
+    restart: unless-stopped
+  wgui:
+    image: docker.io/ngoduykhanh/wireguard-ui:0.6.2
+    depends_on:
+      - wireguard
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME}
+      - SMTP_HOSTNAME=${SMTP_HOSTNAME}
+      - SMTP_PORT=465
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_AUTH_TYPE=LOGIN
+      - SMTP_ENCRYPTION=TLS
+      - SESSION_SECRET=${SESSION_SECRET}
+      - WGUI_ENDPOINT_ADDRESS=${VPN_DOMAIN}
+      - WGUI_SERVER_INTERFACE_ADDRESSES=10.69.69.0/24
+      - WGUI_DEFAULT_CLIENT_ALLOWED_IPS=10.69.69.0/24 # Only create and use a virtual network, don't route other traffic
+      - WGUI_DEFAULT_CLIENT_USE_SERVER_DNS=false
+      - WGUI_DNS=9.9.9.9,149.112.112.112
+      - WGUI_USERNAME=admin
+      - WGUI_PASSWORD=${WGUI_PASSWORD}
+      - WGUI_MANAGE_START=true
+      - WGUI_MANAGE_RESTART=true
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+    volumes:
+      - "wgui-db-vol:/app/db:Z"
+      - "wg-conf-vol:/etc/wireguard:z"
+    # use the network of the 'wireguard' service. this enables to show active clients in the status page
+    network_mode: service:wireguard
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wgui.rule=Host(`${VPN_DOMAIN}`)"
+      - "traefik.http.routers.wgui.middlewares=crowdsec@docker"
+      - "traefik.http.routers.wgui.entrypoints=websecure"
+      - "traefik.http.routers.wgui.tls=true"
+      - "traefik.http.routers.wgui.tls.certresolver=letsencrypt"
+      - "traefik.http.services.wgui.loadbalancer.server.port=5000"
+      - "traefik.http.middlewares.crowdsec.plugin.bouncer.enabled=true"
+      - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecmode=stream"
+      - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdseclapikey=${BOUNCER_KEY_TRAEFIK}"
+      - "traefik.http.middlewares.crowdsec.plugin.bouncer.crowdsecappsecenabled=true"
+    restart: unless-stopped
 networks:
   internal:
 volumes:
@@ -108,3 +166,5 @@ volumes:
   traefik-logs-vol:
   traefik-acme-vol:
   mongodb-data-vol:
+  wg-conf-vol:
+  wgui-db-vol:
