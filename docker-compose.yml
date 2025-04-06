@@ -101,7 +101,7 @@ services:
       - internal
     restart: unless-stopped
   wg-easy:
-    image: ghcr.io/wg-easy/wg-easy:v14.0.0
+    image: ghcr.io/wg-easy/wg-easy:14
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
